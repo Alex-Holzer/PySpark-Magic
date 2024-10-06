@@ -1,51 +1,14 @@
-import logging
-from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional
 
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import col, dayofmonth, month, year
+
+spark = SparkSession.builder.getOrCreate()
+
+
+from concurrent.futures import ThreadPoolExecutor
+
 from delta.tables import DeltaTable
-from pyspark.sql import DataFrame
-    df_dict: Dict[str, DataFrame],
-    base_path: str = "abfss://prod@eudldegikoproddl.dfs.core.windows.net/PROD/usecases/AnalyticsUW",
-    partition_col: str = "date",
-    zorder_col: str = "policy_number",
-) -> None:
-    """
-    Saves multiple PySpark DataFrames as Delta tables in the specified path.
-
-    Args:
-        df_dict (Dict[str, DataFrame]): A dictionary where keys are DataFrame names and values are DataFrame objects.
-        base_path (str, optional): The base path where Delta tables will be saved. Defaults to the given path.
-        partition_col (str, optional): The column name to partition the data. Defaults to "date".
-        zorder_col (str, optional): The column name to Z-Order the data. Defaults to "policy_number".
-
-    Returns:
-        None
-    """
-    for table_name, df in df_dict.items():
-        try:
-            # Build the full path
-            table_path = f"{base_path}/{table_name}"
-
-            # Write the DataFrame as Delta table
-            (
-                df.write.format("delta")
-                .partitionBy(partition_col)
-                .mode("overwrite")
-                .save(table_path)
-            )
-
-            # Optimize and Z-Order the Delta table
-            spark.sql(f"OPTIMIZE delta.`{table_path}` ZORDER BY ({zorder_col})")
-
-            logging.info(f"Successfully saved and optimized table {table_name}")
-        except Exception as e:
-            logging.error(f"Error saving table {table_name}: {e}")
-        except Exception as e:
-            logging.error(f"Error saving table {table_name}: {e}")
-
-
-# improved version
-
 
 
 def save_dataframes_as_delta(
