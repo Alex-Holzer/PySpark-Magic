@@ -9,14 +9,15 @@ and also performing column-based operations utilizing
 PySpark's `StringIndexer`, `VectorAssembler`, and `ChiSquareTest`.
 """
 
-from typing import List
+import math
+from collections import defaultdict
+from itertools import combinations
+from typing import Dict, List
 
-from pyspark.ml.feature import StringIndexer, VectorAssembler
-from pyspark.ml.stat import ChiSquareTest
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col
-
-spark = SparkSession.builder.getOrCreate()
+from pyspark.sql.functions import col, count, lit, when
+from pyspark.sql.functions import sum as _sum
+from pyspark.sql.types import StringType
 
 
 def select_column_with_prefix(df: DataFrame, prefix: str) -> DataFrame:
@@ -430,62 +431,145 @@ def select_columns_with_low_cardinality(
     return df.select(*low_cardinality_columns)
 
 
-def select_highly_correlated_columns(
-    df: DataFrame, target_col: str, threshold: float
-) -> DataFrame:
+# Initialize Spark Session (if not already initialized)
+spark = SparkSession.builder.getOrCreate()
+
+
+def find_highly_correlated_string_columns(
+    df: DataFrame, threshold: float = 0.7, missing_placeholder: str = "__MISSING__"
+) -> List[List[str]]:
     """
-    Selects categorical columns highly correlated with the target column using Chi-square test.
+    Identifies groups of string (categorical) columns in a PySpark DataFrame that are highly correlated.
+    Correlation is measured using Cramér's V statistic.
 
-     Parameters
-     ----------
-     df : DataFrame
-         Input DataFrame.
-     target_col : str
-         Target column for correlation.
-     threshold : float
-         Max p-value to consider a column as correlated.
+    Parameters:
+    -----------
+    df : DataFrame
+        The input PySpark DataFrame containing string columns to analyze.
+    threshold : float, optional
+        The Cramér's V threshold above which columns are considered highly correlated.
+        Defaults to 0.7.
+    missing_placeholder : str, optional
+        The string to replace null values with in string columns.
+        Defaults to "__MISSING__".
 
-     Returns
-     -------
-     DataFrame
-         DataFrame with only highly correlated columns.
+    Returns:
+    --------
+    List[List[str]]
+        A list of groups, where each group is a list of column names that are highly correlated.
 
-
+    Raises:
+    -------
+    ValueError
+        If no string columns are found in the DataFrame.
     """
-    # Step 1: Identify string columns (categorical columns)
-    string_columns = [
-        col_name
-        for col_name, dtype in df.dtypes
-        if dtype == "string" and col_name != target_col
+
+    # Step 1: Identify string columns
+    string_cols = [
+        field.name
+        for field in df.schema.fields
+        if isinstance(field.dataType, StringType)
     ]
 
-    # Step 2: Index the string columns and the target column
-    indexers = [
-        StringIndexer(inputCol=col_name, outputCol=col_name + "_indexed").fit(df)
-        for col_name in string_columns + [target_col]
-    ]
+    if not string_cols:
+        raise ValueError("No string columns found in the DataFrame.")
 
-    # Apply the indexers and transform the DataFrame
-    for indexer in indexers:
-        df = indexer.transform(df)
+    # Step 2: Handle missing values by replacing nulls with a placeholder
+    df_filled = df.select(
+        [
+            when(col(c).isNull(), lit(missing_placeholder)).otherwise(col(c)).alias(c)
+            for c in string_cols
+        ]
+    )
 
-    # List of indexed string columns (excluding target column)
-    indexed_columns = [col_name + "_indexed" for col_name in string_columns]
+    # Cache the filled DataFrame as it will be used multiple times
+    df_filled.cache()
+    df_filled_count = df_filled.count()  # Trigger caching
 
-    # Assemble all indexed columns into a feature vector
-    assembler = VectorAssembler(inputCols=indexed_columns, outputCol="features")
-    df_vector = assembler.transform(df)
+    # Precompute the number of unique categories for each column
+    unique_counts = {}
+    for c in string_cols:
+        unique_counts[c] = df_filled.select(c).distinct().count()
 
-    # Step 3: Perform Chi-Square Test to compute correlations
-    chi_sq_result = ChiSquareTest.test(
-        df_vector, "features", target_col + "_indexed"
-    ).head()
+    # Broadcast the unique counts for efficiency
+    spark = df_filled.sparkSession
+    bc_unique_counts = spark.sparkContext.broadcast(unique_counts)
 
-    # Step 4: Identify highly correlated columns based on p-values
-    correlated_columns = []
-    for i, p_value in enumerate(chi_sq_result.pValues):
-        if p_value < threshold:
-            correlated_columns.append(string_columns[i])  # Get the original column name
+    # Initialize Union-Find structure for grouping
+    parent = {col_name: col_name for col_name in string_cols}
 
-    # Step 5: Select the correlated columns and return the resulting DataFrame
-    return df.select(*correlated_columns)
+    def find(x: str) -> str:
+        # Path Compression
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+
+    def union(x: str, y: str) -> None:
+        root_x = find(x)
+        root_y = find(y)
+        if root_x != root_y:
+            parent[root_y] = root_x
+
+    # Step 3: Compute Cramér's V for each pair of string columns
+    for col1, col2 in combinations(string_cols, 2):
+        # Create contingency table
+        contingency = df_filled.groupBy(col1, col2).agg(count(lit(1)).alias("count"))
+
+        # Compute chi-squared statistic
+        # Step 3.1: Compute the total number of observations
+        n = df_filled_count
+
+        # Step 3.2: Compute the observed frequencies
+        # To compute chi-squared, we need the observed counts and expected counts
+        # However, computing expected counts directly is expensive
+        # Instead, we'll use an approximation for large datasets
+
+        # Compute row sums and column sums
+        row_sums = df_filled.groupBy(col1).agg(_sum(lit(1)).alias("row_sum"))
+        col_sums = df_filled.groupBy(col2).agg(_sum(lit(1)).alias("col_sum"))
+
+        # Join contingency with row_sums and col_sums to compute expected counts
+        contingency_with_totals = contingency.join(row_sums, on=col1, how="left").join(
+            col_sums, on=col2, how="left"
+        )
+
+        # Calculate expected counts and chi-squared components
+        # E_ij = (row_sum_i * col_sum_j) / n
+        # (O_ij - E_ij)^2 / E_ij
+        contingency_with_calc = contingency_with_totals.withColumn(
+            "expected", (col("row_sum") * col("col_sum")) / lit(n)
+        ).withColumn(
+            "chi_sq_component",
+            ((col("count") - col("expected")) ** 2) / col("expected"),
+        )
+
+        # Sum all chi_sq_components to get chi-squared statistic
+        chi2 = contingency_with_calc.agg(
+            _sum("chi_sq_component").alias("chi2")
+        ).collect()[0]["chi2"]
+
+        # Calculate Cramér's V
+        k1 = bc_unique_counts.value[col1]
+        k2 = bc_unique_counts.value[col2]
+        min_dim = min(k1, k2) - 1
+        if min_dim > 0 and n > 0:
+            cramer_v = math.sqrt(chi2 / (n * min_dim))
+        else:
+            cramer_v = 0.0
+
+        if cramer_v >= threshold:
+            union(col1, col2)
+
+    # Step 4: Group columns that are highly correlated
+    group_dict: Dict[str, List[str]] = defaultdict(list)
+    for col_name in string_cols:
+        root = find(col_name)
+        group_dict[root].append(col_name)
+
+    # Filter out groups with only one column
+    groups = [group for group in group_dict.values() if len(group) > 1]
+
+    # Unpersist the cached DataFrame
+    df_filled.unpersist()
+
+    return groups
