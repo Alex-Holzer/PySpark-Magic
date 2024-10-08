@@ -6,13 +6,9 @@ from datetime import datetime
 from typing import List, Literal, Optional, Union
 
 from pyspark.sql import DataFrame
-from pyspark.sql.functions import current_timestamp, expr
-from pyspark.sql.types import TimestampType
-from typing import Optional
-
-
 from pyspark.sql.functions import (
     col,
+    concat,
     current_timestamp,
     date_format,
     dayofmonth,
@@ -32,14 +28,8 @@ from pyspark.sql.functions import (
     weekofyear,
     when,
     year,
-    concat,
 )
 from pyspark.sql.types import TimestampType
-
-
-def cast_string_to_date(
-    df: DataFrame, columns: list[str], date_format: str
-) -> DataFrame:
     """
     Casts the specified string columns to a date format in the given DataFrame.
 
@@ -361,7 +351,6 @@ def add_quarter_year_column(df: DataFrame, date_column: str, new_column_name: st
     return df.withColumn(new_column_name, concat(lit("Q"), quarter(col(date_column)), lit(" "), year(col(date_column))))
 
 
------------
 
 def detect_timestamp_format(timestamp: str) -> Optional[str]:
     """

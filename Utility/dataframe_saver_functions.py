@@ -1,14 +1,15 @@
+import logging
 from typing import Dict, Optional
 
+from delta.tables import DeltaTable
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import col, dayofmonth, month, year
 
+# Initialize Spark session
 spark = SparkSession.builder.getOrCreate()
 
-
-from concurrent.futures import ThreadPoolExecutor
-
-from delta.tables import DeltaTable
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 
 def save_dataframes_as_delta(
@@ -34,38 +35,11 @@ def save_dataframes_as_delta(
         policy_cols (Dict[str, str], optional): Mapping of DataFrame names to policy column names.
         mode (str, optional): Write mode ('overwrite' or 'append'). Defaults to 'overwrite'.
         allow_schema_evolution (bool, optional): Whether to allow schema evolution during write. Defaults to True.
-
-    # Example DataFrames with different policy column names
-    df1 = df1.withColumn("timestamp_col", df1["timestamp"])  # Assuming df1 has a 'timestamp' column
-    df2 = df2.withColumn("timestamp_col", df2["timestamp"])
-    df3 = df3.withColumn("timestamp_col", df3["timestamp"])
-
-    df_dict = {
-        "table1": df1,
-        "table2": df2,
-        "table3": df3,
-    }
-
-    # Mapping of table names to their policy column names
-    policy_cols = {
-        "table1": "policy_id",
-        "table2": "policy_number",
-        "table3": "policy_num",
-    }
-
-    # Call the function with partitioning and schema evolution
-    save_dataframes_as_delta(
-        df_dict,
-        partition_col="timestamp_col",
-        partition_granularity="month",
-        policy_cols=policy_cols,
-        mode="overwrite",
-        allow_schema_evolution=True
-    )
     """
 
     def write_df(name_df_pair):
         name, df = name_df_pair
+        logging.info("Starting write process for DataFrame '%s'", name)
         table_path = f"{base_path}/{name}"
 
         # Adjust number of partitions to optimize write performance
@@ -75,6 +49,11 @@ def save_dataframes_as_delta(
         # Handle partitioning based on granularity
         partition_by = []
         if partition_col and partition_col in df.columns:
+            logging.info(
+                "Applying partitioning on column '%s' with granularity '%s'",
+                partition_col,
+                partition_granularity,
+            )
             if partition_granularity == "year":
                 df = df.withColumn("partition_year", year(col(partition_col)))
                 partition_by = ["partition_year"]
@@ -103,13 +82,25 @@ def save_dataframes_as_delta(
         if partition_by:
             write_builder = write_builder.partitionBy(*partition_by)
 
+        logging.info("Saving DataFrame '%s' to path '%s'", name, table_path)
         write_builder.save(table_path)
 
         # Optimize the Delta table using Z-Ordering on the policy column
         policy_col = policy_cols.get(name)
         if policy_col and policy_col in df.columns:
-            delta_table = DeltaTable.forPath(df.sparkSession, table_path)
-            delta_table.optimize().executeZOrderBy(policy_col)
+            try:
+                delta_table = DeltaTable.forPath(df.sparkSession, table_path)
+                logging.info(
+                    "Optimizing Delta table '%s' with Z-ordering on column '%s'",
+                    name,
+                    policy_col,
+                )
+                delta_table.optimize().executeZOrderBy(policy_col)
+            except Exception as e:
+                logging.error("Failed to optimize Delta table '%s': %s", name, str(e))
 
-    with ThreadPoolExecutor() as executor:
-        executor.map(write_df, df_dict.items())
+        logging.info("Write process for DataFrame '%s' completed successfully", name)
+
+    # Execute the write operation sequentially for each DataFrame
+    for name_df_pair in df_dict.items():
+        write_df(name_df_pair)
