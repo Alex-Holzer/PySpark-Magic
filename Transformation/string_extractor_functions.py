@@ -277,38 +277,114 @@ def extract_street_and_house_number(df, address_column):
 
 def split_full_name(df, full_name_column):
     """
-    Splits the full_name columm in a dataFrame into first_name and last_name columns.
+    Splits the full_name column in a DataFrame into title, first_name, and last_name columns.
     """
-    # List of German prepositions commonly found in names
-    prepositions = set(["von", "van", "zu", "vom", "zum", "zur", "de", "der", "den"])
+    # List of possible German titles
+    raw_titles = [
+        "Dr.",
+        "Prof.",
+        "Dipl.-Ing.",
+        "Dipl.-Kfm.",
+        "Dipl.",
+        "Mag.",
+        "Ing.",
+        "B.Sc.",
+        "M.Sc.",
+        "Ph.D.",
+        "Univ.-Prof.",
+        "Priv.-Doz.",
+        "Univ.-Doz.",
+        "Dr.-Ing.",
+    ]
+    # Normalize titles for case-insensitive matching and handle variations with or without periods
+    normalized_titles = set()
+    for t in raw_titles:
+        t_norm = t.replace(".", "").lower()
+        normalized_titles.add(t_norm)
+
+    # List of German and common European prepositions or particles in surnames
+    prepositions_list = [
+        ["von", "der"],
+        ["van", "der"],
+        ["von", "dem"],
+        ["van", "den"],
+        ["de", "la"],
+        ["de", "le"],
+        ["de", "los"],
+        ["de", "las"],
+        ["von"],
+        ["van"],
+        ["zu"],
+        ["zum"],
+        ["zur"],
+        ["vom"],
+        ["de"],
+        ["del"],
+        ["da"],
+        ["di"],
+        ["der"],
+        ["den"],
+        ["du"],
+        ["la"],
+        ["le"],
+    ]
+    # Sort prepositions_list by length in decreasing order
+    prepositions_list.sort(key=lambda x: -len(x))
+
+    # Normalize prepositions to lowercase for comparison
+    prepositions_list = [
+        [word.lower() for word in preposition] for preposition in prepositions_list
+    ]
 
     # Define the UDF to split the full name
     def split_name(full_name):
         if not full_name:
-            return ("", "")
+            return ("", "", "")
         words = full_name.strip().split()
-        last_name_words = []
-        # Iterate over the words in reverse
-        for i in range(len(words) - 1, -1, -1):
+        title_words = []
+        i = 0
+        # Extract titles from the beginning of the name
+        while i < len(words):
             word = words[i]
-            # Always include the last word
-            if not last_name_words:
-                last_name_words.append(word)
-            # Include prepositions and hyphenated names in the last name
-            elif word.lower() in prepositions:
-                last_name_words.append(word)
+            word_norm = word.replace(".", "").lower()
+            if word_norm in normalized_titles:
+                title_words.append(word)
+                i += 1
             else:
                 break
-        last_name_words.reverse()
+        title = " ".join(title_words)
+        # Remaining words after extracting the title
+        name_words = words[i:]
+        if not name_words:
+            return (title, "", "")
+        # Build last_name_words starting from the last word
+        last_name_words = [name_words[-1]]
+        j = len(name_words) - 2
+        while j >= 0:
+            match = False
+            for preposition in prepositions_list:
+                preposition_length = len(preposition)
+                if j - preposition_length + 1 >= 0:
+                    candidate_words = name_words[j - preposition_length + 1 : j + 1]
+                    candidate_words_lower = [w.lower() for w in candidate_words]
+                    if candidate_words_lower == preposition:
+                        last_name_words = candidate_words + last_name_words
+                        j = j - preposition_length
+                        match = True
+                        break
+            if not match:
+                break
+        first_name_words = name_words[: j + 1]
+        first_name = " ".join(first_name_words)
         last_name = " ".join(last_name_words)
-        first_name = " ".join(words[: len(words) - len(last_name_words)])
-        return (first_name, last_name)
+        return (title, first_name, last_name)
 
     # Define the UDF with the appropriate return type
     split_name_udf = udf(
         split_name,
         StructType(
             [
+                StructField("title", StringType(), True),
                 StructField("first_name", StringType(), True),
                 StructField("last_name", StringType(), True),
             ]
@@ -317,6 +393,7 @@ def split_full_name(df, full_name_column):
 
     # Apply the UDF to the DataFrame
     df = df.withColumn("name_struct", split_name_udf(col(full_name_column)))
+    df = df.withColumn("title", col("name_struct.title"))
     df = df.withColumn("first_name", col("name_struct.first_name"))
     df = df.withColumn("last_name", col("name_struct.last_name"))
     df = df.drop("name_struct")

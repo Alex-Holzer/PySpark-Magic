@@ -1,4 +1,5 @@
 import logging
+from builtins import max
 from typing import Dict, Optional
 
 from delta.tables import DeltaTable

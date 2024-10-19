@@ -30,12 +30,12 @@ from pyspark.sql.functions import (
     length,
     lit,
     lower,
+    lpad,
     ltrim,
 )
 from pyspark.sql.functions import max as spark_max
 from pyspark.sql.functions import min as spark_min
-from pyspark.sql.functions import regexp_replace, rtrim, trim, udf, upper, when
-from pyspark.sql.types import StringType
+from pyspark.sql.functions import regexp_replace, rpad, rtrim, trim, udf, upper, when
 
 spark = SparkSession.builder.getOrCreate()
 
@@ -878,3 +878,34 @@ def validate_equal_string_length(
                 raise ValueError(error_message)
 
     return df
+
+
+def enforce_string_length(
+    df: DataFrame, column_name: str, string_length: int = 20
+) -> DataFrame:
+    """
+    Adjusts the string length of a specified column in the PySpark DataFrame to match the specified length.
+
+    If the original string is longer, it trims it. If it is shorter, it pads with spaces.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The input PySpark DataFrame.
+    column_name : str
+        The name of the string column to be adjusted.
+    string_length : int, optional
+        The length to which the strings should be adjusted (default is 20).
+
+    Returns
+    -------
+    DataFrame
+        A DataFrame with the specified column adjusted to the exact string length.
+    """
+    return df.withColumn(
+        column_name,
+        when(
+            col(column_name).isNotNull(),
+            rpad(col(column_name).substr(1, string_length), string_length, " "),
+        ).otherwise(col(column_name)),
+    )
