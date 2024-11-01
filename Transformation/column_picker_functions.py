@@ -15,8 +15,9 @@ from itertools import combinations
 from typing import Dict, List
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, count, lit, when
+from pyspark.sql.functions import col, count, lit
 from pyspark.sql.functions import sum as _sum
+from pyspark.sql.functions import when
 from pyspark.sql.types import StringType
 
 
@@ -429,10 +430,6 @@ def select_columns_with_low_cardinality(
 
     # Select and return the DataFrame with only the low cardinality columns
     return df.select(*low_cardinality_columns)
-
-
-# Initialize Spark Session (if not already initialized)
-spark = SparkSession.builder.getOrCreate()
 
 
 def find_highly_correlated_string_columns(

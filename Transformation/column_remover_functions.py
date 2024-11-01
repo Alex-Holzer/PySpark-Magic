@@ -244,7 +244,7 @@ def remove_columns_with_prefix(dataframe: DataFrame, prefix: str) -> DataFrame:
     return dataframe.select(*columns_to_keep)
 
 
-def rempove_columns_with_suffix(dataframe: DataFrame, suffix: str) -> DataFrame:
+def remove_columns_with_suffix(dataframe: DataFrame, suffix: str) -> DataFrame:
     """
     Drop all columns from a PySpark DataFrame that end with the specified suffix.
 
