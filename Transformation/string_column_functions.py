@@ -30,7 +30,6 @@ from pyspark.sql.functions import (
     length,
     lit,
     lower,
-    lpad,
     ltrim,
     regexp_replace,
     rpad,
@@ -378,11 +377,11 @@ def trim_whitespace(
     trim_type: Literal["both", "left", "right"] = "both",
 ) -> DataFrame:
     """
-    Trim whitespace from specified string columns.
+    Trim whitespace from specified string columns and reduce multiple spaces between words to single spaces.
 
     This function efficiently trims whitespace from the specified string columns
-    in a PySpark DataFrame. It supports trimming from both sides, left side only,
-    or right side only.
+    in a PySpark DataFrame and also reduces multiple spaces between words to a single space.
+    It supports trimming from both sides, left side only, or right side only.
 
     Args:
         df (DataFrame): Input DataFrame.
@@ -391,29 +390,36 @@ def trim_whitespace(
             Options: 'both', 'left', 'right'. Default is 'both'.
 
     Returns:
-        DataFrame: DataFrame with trimmed string columns.
+        DataFrame: DataFrame with trimmed string columns and reduced spaces between words.
 
     Raises:
         ValueError: If an invalid trim_type is provided.
         TypeError: If input types are incorrect.
 
     Example:
-        >>> df = spark.createDataFrame([("  John  ", "  Doe  ")], ["first_name", "last_name"])
-        >>> result = df.trim_whitespace(["first_name", "last_name"])
+        >>> df = spark.createDataFrame([("  John   Doe  ", "  Jane    Smith  ")], ["full_name1", "full_name2"])
+        >>> result = trim_whitespace(df, ["full_name1", "full_name2"])
         >>> result.show()
-        +----------+---------+
-        |first_name|last_name|
-        +----------+---------+
-        |      John|      Doe|
-        +----------+---------+
+        +-----------+-----------+
+        |full_name1 |full_name2 |
+        +-----------+-----------+
+        |John Doe   |Jane Smith |
+        +-----------+-----------+
     """
     if trim_type not in ["both", "left", "right"]:
         raise ValueError("trim_type must be 'both', 'left', or 'right'")
 
+    if isinstance(columns, str):
+        columns = [columns]
+
     trim_func = {"both": trim, "left": ltrim, "right": rtrim}[trim_type]
 
+    def trim_and_reduce_spaces(c):
+        return regexp_replace(trim_func(col(c)), r"\s+", " ")
+
     trim_exprs = [
-        trim_func(col(c)).alias(c) if c in columns else col(c) for c in df.columns
+        trim_and_reduce_spaces(c).alias(c) if c in columns else col(c)
+        for c in df.columns
     ]
 
     return df.select(*trim_exprs)

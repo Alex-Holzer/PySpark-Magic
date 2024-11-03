@@ -14,10 +14,8 @@ from collections import defaultdict
 from itertools import combinations
 from typing import Dict, List
 
-from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, count, lit
-from pyspark.sql.functions import sum as _sum
-from pyspark.sql.functions import when
+from pyspark.sql import DataFrame
+from pyspark.sql import functions as F
 from pyspark.sql.types import StringType
 
 
@@ -329,7 +327,7 @@ def select_columns_by_value_pattern(df: DataFrame, pattern: str) -> DataFrame:
 
     # Iterate over each column and check if any value contains the pattern
     for column in df.columns:
-        if df.filter(col(column).cast("string").contains(pattern)).count() > 0:
+        if df.filter(F.col(column).cast("string").contains(pattern)).count() > 0:
             matching_columns.append(column)
 
     # Select and return the DataFrame with the filtered columns
@@ -353,7 +351,7 @@ def select_non_null_columns(df: DataFrame) -> DataFrame:
     non_null_columns = [
         col_name
         for col_name in df.columns
-        if df.filter(col(col_name).isNotNull()).count() == df.count()
+        if df.filter(F.col(col_name).isNotNull()).count() == df.count()
     ]
     return df.select(*non_null_columns)
 
@@ -375,7 +373,7 @@ def select_columns_with_nulls(df: DataFrame) -> DataFrame:
     columns_with_nulls = [
         col_name
         for col_name in df.columns
-        if df.filter(col(col_name).isNull()).count() > 0
+        if df.filter(F.col(col_name).isNull()).count() > 0
     ]
     return df.select(*columns_with_nulls)
 
@@ -474,7 +472,9 @@ def find_highly_correlated_string_columns(
     # Step 2: Handle missing values by replacing nulls with a placeholder
     df_filled = df.select(
         [
-            when(col(c).isNull(), lit(missing_placeholder)).otherwise(col(c)).alias(c)
+            F.when(F.col(c).isNull(), F.lit(missing_placeholder))
+            .otherwise(F.col(c))
+            .alias(c)
             for c in string_cols
         ]
     )
@@ -510,7 +510,9 @@ def find_highly_correlated_string_columns(
     # Step 3: Compute Cramér's V for each pair of string columns
     for col1, col2 in combinations(string_cols, 2):
         # Create contingency table
-        contingency = df_filled.groupBy(col1, col2).agg(count(lit(1)).alias("count"))
+        contingency = df_filled.groupBy(col1, col2).agg(
+            F.count(F.lit(1)).alias("count")
+        )
 
         # Compute chi-squared statistic
         # Step 3.1: Compute the total number of observations
@@ -522,8 +524,8 @@ def find_highly_correlated_string_columns(
         # Instead, we'll use an approximation for large datasets
 
         # Compute row sums and column sums
-        row_sums = df_filled.groupBy(col1).agg(_sum(lit(1)).alias("row_sum"))
-        col_sums = df_filled.groupBy(col2).agg(_sum(lit(1)).alias("col_sum"))
+        row_sums = df_filled.groupBy(col1).agg(F.sum(F.lit(1)).alias("row_sum"))
+        col_sums = df_filled.groupBy(col2).agg(F.sum(F.lit(1)).alias("col_sum"))
 
         # Join contingency with row_sums and col_sums to compute expected counts
         contingency_with_totals = contingency.join(row_sums, on=col1, how="left").join(
@@ -534,15 +536,15 @@ def find_highly_correlated_string_columns(
         # E_ij = (row_sum_i * col_sum_j) / n
         # (O_ij - E_ij)^2 / E_ij
         contingency_with_calc = contingency_with_totals.withColumn(
-            "expected", (col("row_sum") * col("col_sum")) / lit(n)
+            "expected", (F.col("row_sum") * F.col("col_sum")) / F.lit(n)
         ).withColumn(
             "chi_sq_component",
-            ((col("count") - col("expected")) ** 2) / col("expected"),
+            ((F.col("count") - F.col("expected")) ** 2) / F.col("expected"),
         )
 
         # Sum all chi_sq_components to get chi-squared statistic
         chi2 = contingency_with_calc.agg(
-            _sum("chi_sq_component").alias("chi2")
+            F.sum("chi_sq_component").alias("chi2")
         ).collect()[0]["chi2"]
 
         # Calculate Cramér's V

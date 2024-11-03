@@ -10,11 +10,8 @@ and preprocessing in large datasets.
 
 from typing import List
 
-from pyspark.sql import DataFrame, SparkSession
-
-spark: SparkSession = SparkSession.builder.getOrCreate()
-
-from pyspark.sql.functions import col, count, isnan, when
+from pyspark.sql import DataFrame
+from pyspark.sql import functions as F
 from pyspark.sql.types import (
     ArrayType,
     BooleanType,
@@ -40,7 +37,7 @@ def remove_empty_string_columns(df: DataFrame) -> DataFrame:
     non_empty_columns = [
         col_name
         for col_name in df.columns
-        if df.filter(col(col_name) != "").count() > 0
+        if df.filter(F.col(col_name) != "").count() > 0
     ]
     return df.select(*non_empty_columns)
 
@@ -186,15 +183,15 @@ def remove_empty_columns(df: DataFrame) -> DataFrame:
         A new DataFrame without columns that are entirely null or NaN.
     """
     # Explicitly cast all columns to DoubleType to ensure type consistency
-    df_casted = df.select([col(column).cast(DoubleType()) for column in df.columns])
+    df_casted = df.select([F.col(column).cast(DoubleType()) for column in df.columns])
 
     # Aggregate to count non-null and non-NaN values in each column
     agg_result = df_casted.agg(
         *[
             (
-                count(when(~col(column).isNull() & ~isnan(col(column)), column)).alias(
-                    column
-                )
+                F.count(
+                    F.when(~F.col(column).isNull() & ~F.isnan(F.col(column)), column)
+                ).alias(column)
             )
             for column in df_casted.columns
         ]

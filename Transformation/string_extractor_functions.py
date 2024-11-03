@@ -24,7 +24,15 @@ import re
 from typing import Optional
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, regexp_extract, regexp_replace, trim, udf
+from pyspark.sql.functions import (
+    col,
+    lit,
+    regexp_extract,
+    regexp_replace,
+    trim,
+    udf,
+    when,
+)
 from pyspark.sql.types import StringType, StructField, StructType
 
 spark = SparkSession.builder.getOrCreate()
@@ -399,3 +407,27 @@ def split_full_name(df, full_name_column):
     df = df.drop("name_struct")
 
     return df
+
+
+def extract_form_of_address(df: DataFrame, column_name: str) -> DataFrame:
+    """
+    Normalizes the form of address in a given column of a PySpark DataFrame to either 'Herr' or 'Frau'.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The input PySpark DataFrame containing the form of address column.
+    column_name : str
+        The name of the column with form of address values.
+
+    Returns
+    -------
+    DataFrame
+        The transformed DataFrame with normalized forms of address.
+    """
+    return df.withColumn(
+        column_name,
+        when(col(column_name).startswith("H"), lit("Herr"))
+        .when(col(column_name).startswith("F"), lit("Frau"))
+        .otherwise(col(column_name)),
+    )

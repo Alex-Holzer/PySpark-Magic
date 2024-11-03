@@ -30,6 +30,11 @@ from pyspark.sql.functions import (
     year,
 )
 from pyspark.sql.types import TimestampType
+
+
+def cast_columns_to_date(
+    df: DataFrame, columns: List[str], date_format: str
+) -> DataFrame:
     """
     Casts the specified string columns to a date format in the given DataFrame.
 
@@ -46,6 +51,10 @@ from pyspark.sql.types import TimestampType
     -------
     DataFrame
         The DataFrame with the specified columns cast to date format.
+
+    Example
+    -------
+    >>> df = cast_columns_to_date(df, ['column1', 'column2'], 'yyyy-MM-dd')
     """
     for column in columns:
         df = df.withColumn(column, to_date(col(column), date_format))
@@ -142,8 +151,9 @@ def add_current_timestamp_column(
     return df
 
 
-
-def format_date_column(df: DataFrame, column: str, new_column_name: str, format: str = "MM.yyyy") -> DataFrame:
+def format_date_column(
+    df: DataFrame, column: str, new_column_name: str, format: str = "MM.yyyy"
+) -> DataFrame:
     """
     Formats a date column to the specified format, defaulting to "MM.yyyy".
 
@@ -178,11 +188,11 @@ def format_date_column(df: DataFrame, column: str, new_column_name: str, format:
     return df.withColumn(new_column_name, date_format(col(column), format))
 
 
-
-
-def add_day_of_week_column(df: DataFrame, date_column: str, new_column_name: str = "day_of_week") -> DataFrame:
+def add_day_of_week_column(
+    df: DataFrame, date_column: str, new_column_name: str = "day_of_week"
+) -> DataFrame:
     """
-    Adds a new column to the DataFrame with the day of the week as long text (e.g., 'Monday') 
+    Adds a new column to the DataFrame with the day of the week as long text (e.g., 'Monday')
     derived from a date column.
 
     Parameters
@@ -214,8 +224,9 @@ def add_day_of_week_column(df: DataFrame, date_column: str, new_column_name: str
     return df.withColumn(new_column_name, date_format(col(date_column), "EEEE"))
 
 
-
-def add_month_column(df: DataFrame, date_column: str, new_column_name: str = "month") -> DataFrame:
+def add_month_column(
+    df: DataFrame, date_column: str, new_column_name: str = "month"
+) -> DataFrame:
     """
     Adds a new column to the DataFrame with the month extracted from a date column.
 
@@ -248,9 +259,9 @@ def add_month_column(df: DataFrame, date_column: str, new_column_name: str = "mo
     return df.withColumn(new_column_name, month(col(date_column)))
 
 
-
-
-def add_year_column(df: DataFrame, date_column: str, new_column_name: str = "year") -> DataFrame:
+def add_year_column(
+    df: DataFrame, date_column: str, new_column_name: str = "year"
+) -> DataFrame:
     """
     Adds a new column to the DataFrame with the year extracted from a date column.
 
@@ -283,7 +294,9 @@ def add_year_column(df: DataFrame, date_column: str, new_column_name: str = "yea
     return df.withColumn(new_column_name, year(col(date_column)))
 
 
-def add_quarter_column(df: DataFrame, date_column: str, new_column_name: str = "quarter") -> DataFrame:
+def add_quarter_column(
+    df: DataFrame, date_column: str, new_column_name: str = "quarter"
+) -> DataFrame:
     """
     Adds a new column to the DataFrame with the quarter of the year extracted from a date column.
 
@@ -316,9 +329,9 @@ def add_quarter_column(df: DataFrame, date_column: str, new_column_name: str = "
     return df.withColumn(new_column_name, quarter(col(date_column)))
 
 
-
-
-def add_quarter_year_column(df: DataFrame, date_column: str, new_column_name: str = "quarter_year") -> DataFrame:
+def add_quarter_year_column(
+    df: DataFrame, date_column: str, new_column_name: str = "quarter_year"
+) -> DataFrame:
     """
     Adds a new column to the DataFrame that combines the quarter and year extracted from a date column.
 
@@ -348,8 +361,10 @@ def add_quarter_year_column(df: DataFrame, date_column: str, new_column_name: st
     |2024-01-01|Q1 2024     |
     +----------+------------+
     """
-    return df.withColumn(new_column_name, concat(lit("Q"), quarter(col(date_column)), lit(" "), year(col(date_column))))
-
+    return df.withColumn(
+        new_column_name,
+        concat(lit("Q"), quarter(col(date_column)), lit(" "), year(col(date_column))),
+    )
 
 
 def detect_timestamp_format(timestamp: str) -> Optional[str]:
@@ -735,5 +750,3 @@ def add_time_feature(
     }
 
     return df.withColumn(output_col_name, time_features[time_feature])
-
-
