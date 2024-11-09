@@ -1,13 +1,13 @@
-from typing import List, Literal, Union, Dict, Optional, Any,
 import fnmatch
 import logging
+from typing import Any, Dict, List, Literal, Optional, Union
 
-# core functions
 
-
-from typing import Optional
-
-def validate_path(path: Optional[str] = "abfss://prod@eudldegikoproddl.dfs.core.windows.net/PROD/usecases/AnalyticsUW/example.csv") -> bool:
+def validate_path(
+    path: Optional[
+        str
+    ] = "abfss://prod@eudldegikoproddl.dfs.core.windows.net/PROD/usecases/AnalyticsUW/example.csv",
+) -> bool:
     """
     Validate if the provided path exists in the Azure Data Lake Storage.
 
@@ -15,7 +15,7 @@ def validate_path(path: Optional[str] = "abfss://prod@eudldegikoproddl.dfs.core.
     ----------
     path : str, optional
         The file path to validate. The default is the path to a specific CSV file in Azure Data Lake Storage.
-    
+
     Returns
     -------
     bool
@@ -30,24 +30,31 @@ def validate_path(path: Optional[str] = "abfss://prod@eudldegikoproddl.dfs.core.
         return False
 
 
-def list_files_in_folder(folder_path):
+def list_files_in_directory(folder_path: str) -> list[str]:
     """
-    List all files in a specified folder using Databricks' dbutils.
+    List all files in a specified directory using Databricks' dbutils.
 
-    Args:
-        folder_path (str): The full path to the folder in the data lake storage.
+    Parameters
+    ----------
+    folder_path : str
+        The full path to the directory in the data lake storage.
 
-    Returns:
-        list: A list of file paths in the specified folder.
+    Returns
+    -------
+    list of str
+        A list of file paths in the specified directory. If the directory is empty, returns an empty list.
 
-    Raises:
-        ValueError: If the folder_path is empty or None.
+    Raises
+    ------
+    ValueError
+        If the folder_path is empty or None.
 
-    Example:
-        >>> folder_path = "abfss://prod@eudldegikoproddl.dfs.core.windows.net/PROD/usecases/AnalyticsUW_UC1/Process_Mining/
-        >>> files = list_files_in_folder(folder_path)
-        >>> for file in files:
-        ...     print(file)
+    Example
+    -------
+    >>> folder_path = "abfss://prod@eudldegikoproddl.dfs.core.windows.net/PROD/usecases/AnalyticsUW_UC1/Process_Mining/"
+    >>> files = list_files_in_directory(folder_path)
+    >>> for file in files:
+    ...     print(file)
     """
     if not folder_path:
         raise ValueError("folder_path cannot be empty or None")
@@ -55,6 +62,11 @@ def list_files_in_folder(folder_path):
     try:
         # Use dbutils.fs.ls to list files and directories in the specified path
         file_list = dbutils.fs.ls(folder_path)
+
+        # If directory is empty, return an empty list
+        if not file_list:
+            print(f"Directory '{folder_path}' is empty.")
+            return []
 
         # Filter out directories and return only file paths
         return [file.path for file in file_list if not file.isDir()]
@@ -178,168 +190,209 @@ def list_files_by_pattern(directory: str, pattern: str) -> List[Dict[str, str]]:
         return []
 
 
-# 🏗 helper function to get_combined_csv_dataframe
-def _list_csv_files(
-    folder_path: str, recursive: bool, file_extension: str
-) -> List[str]:
+def list_csv_files(folder_path: str) -> list[str]:
     """
-    List all CSV files in the specified folder using dbutils.
+    List all CSV files in a specified directory using Databricks' dbutils.
 
-    Args:
-        folder_path (str): Path to the folder containing CSV files.
-        recursive (bool): Whether to search recursively.
-        file_extension (str): File extension to filter by.
+    Parameters
+    ----------
+    folder_path : str
+        The full path to the directory in the data lake storage.
 
-    Returns:
-        List[str]: List of CSV file paths.
+    Returns
+    -------
+    list of str
+        A list of CSV file paths in the specified directory. If there are no CSV files, returns an empty list.
 
-    Raises:
-        ValueError: If no matching files are found.
+    Raises
+    ------
+    ValueError
+        If the folder_path is empty or None.
+
+    Example
+    -------
+    >>> folder_path = "abfss://prod@eudldegikoproddl.dfs.core.windows.net/PROD/usecases/AnalyticsUW_UC1/Process_Mining/"
+    >>> csv_files = list_csv_files(folder_path)
+    >>> for file in csv_files:
+    ...     print(file)
     """
+    if not folder_path:
+        raise ValueError("folder_path cannot be empty or None")
+
     try:
-        if recursive:
-            files = dbutils.fs.ls(folder_path)
-            csv_files = [f.path for f in files if f.path.endswith(f".{file_extension}")]
-        else:
-            files = dbutils.fs.ls(folder_path)
-            csv_files = [f.path for f in files if f.name.endswith(f".{file_extension}")]
+        # Use dbutils.fs.ls to list files and directories in the specified path
+        file_list = dbutils.fs.ls(folder_path)
 
+        # Filter to only include CSV files and exclude directories
+        csv_files = [
+            file.path
+            for file in file_list
+            if file.path.endswith(".csv") and not file.isDir()
+        ]
+
+        # If no CSV files are found, optionally print a message and return an empty list
         if not csv_files:
-            raise ValueError(
-                f"No .{file_extension} files found in the specified folder: {folder_path}"
-            )
+            print(f"No CSV files found in directory '{folder_path}'.")
+            return []
 
         return csv_files
     except Exception as e:
-        logging.error(f"Error listing CSV files: {str(e)}")
-        raise
+        print(f"An error occurred while listing CSV files: {str(e)}")
+        return []
 
 
-# 🏗 helper function to get_combined_csv_dataframe
-def _read_csv_file(
-    file_path: str, options: Dict[str, Any], columns: Optional[List[str]] = None
-) -> DataFrame:
+def list_excel_files(folder_path: str) -> list[str]:
     """
-    Read a single CSV file into a DataFrame, select specified columns, and add the file name as a column.
+    List all Excel files in a specified directory using Databricks' dbutils.
 
-    Args:
-        file_path (str): Path to the CSV file.
-        options (Dict[str, Any]): Options for reading CSV.
-        columns (Optional[List[str]]): List of columns to select. If None, all columns are selected.
+    Parameters
+    ----------
+    folder_path : str
+        The full path to the directory in the data lake storage.
 
-    Returns:
-        DataFrame: The read DataFrame with selected columns and an additional 'source_file' column.
+    Returns
+    -------
+    list of str
+        A list of Excel file paths (both .xls and .xlsx) in the specified directory. If there are no Excel files, returns an empty list.
+
+    Raises
+    ------
+    ValueError
+        If the folder_path is empty or None.
+
+    Example
+    -------
+    >>> folder_path = "abfss://prod@eudldegikoproddl.dfs.core.windows.net/PROD/usecases/AnalyticsUW_UC1/Process_Mining/"
+    >>> excel_files = list_excel_files(folder_path)
+    >>> for file in excel_files:
+    ...     print(file)
     """
-    df = spark.read.options(**options).csv(file_path)
-
-    if columns:
-        df = df.select(*columns)
-
-    file_name = os.path.basename(file_path)
-    return df.withColumn("source_file", F.lit(file_name))
-
-
-def get_combined_csv_dataframe(
-    folder_path: str,
-    columns: Optional[List[str]] = None,
-    recursive: bool = False,
-    file_extension: str = "csv",
-    **kwargs,
-) -> DataFrame:
-    """
-    Retrieve and combine CSV files from a specified folder into a single DataFrame in Databricks.
-
-    This function is optimized for use in Databricks, utilizing dbutils for file listing and the
-    pre-existing SparkSession. It retrieves CSV files, selects specified columns for each file,
-    and combines them using unionByName. It is designed to handle large datasets efficiently and scalably.
-
-    Args:
-        folder_path (str): The path to the folder containing CSV files.
-        recursive (bool, optional): If True, searches for files recursively in subfolders. Defaults to False.
-        file_extension (str, optional): The file extension to filter by. Defaults to "csv".
-        columns (Optional[List[str]], optional): List of columns to select from each file. If None, all columns are selected.
-        **kwargs: Additional keyword arguments to pass to spark.read.csv().
-
-    Returns:
-        pyspark.sql.DataFrame: A DataFrame containing the combined data from all CSV files,
-                               with selected columns and an additional 'source_file' column.
-
-    Raises:
-        ValueError: If no files with the specified extension are found in the given path.
-
-    Example:
-        >>> folder_path = "/mnt/data/csv_files"
-        >>> columns = ["id", "name", "value"]
-        >>> df = get_combined_csv_dataframe(folder_path, recursive=True, header=True, columns=columns)
-        >>> df.show()
-    """
-    logging.info(f"Reading CSV files from: {folder_path}")
-
-    # Set default options
-    options = {
-        "sep": ";",
-        "header": "true",
-        "ignoreLeadingWhiteSpace": "true",
-        "ignoreTrailingWhiteSpace": "true",
-        "encoding": "UTF-8",
-    }
-    options.update(kwargs)
+    if not folder_path:
+        raise ValueError("folder_path cannot be empty or None")
 
     try:
-        csv_files = _list_csv_files(folder_path, recursive, file_extension)
+        # Use dbutils.fs.ls to list files and directories in the specified path
+        file_list = dbutils.fs.ls(folder_path)
 
-        # Read all CSV files individually, selecting specified columns
-        dataframes = [_read_csv_file(file, options, columns) for file in csv_files]
+        # Filter to only include Excel files (.xls, .xlsx) and exclude directories
+        excel_files = [
+            file.path
+            for file in file_list
+            if (file.path.endswith(".xls") or file.path.endswith(".xlsx"))
+            and not file.isDir()
+        ]
 
-        # Combine all DataFrames using unionByName
-        combined_df = dataframes[0]
-        for df in dataframes[1:]:
-            combined_df = combined_df.unionByName(df, allowMissingColumns=True)
+        # If no Excel files are found, optionally print a message and return an empty list
+        if not excel_files:
+            print(f"No Excel files found in directory '{folder_path}'.")
+            return []
 
-        return combined_df
-
+        return excel_files
     except Exception as e:
-        logging.error(f"Error in get_combined_csv_dataframe: {str(e)}")
-        raise
+        print(f"An error occurred while listing Excel files: {str(e)}")
+        return []
 
 
-# Todo: include that empty files are skipped
-def _list_excel_files(
-    folder_path: str, recursive: bool, file_extension: str
-) -> List[str]:
+def list_text_files(folder_path: str) -> list[str]:
     """
-    List all excel files in the specified folder using dbutils.
+    List all text files in a specified directory using Databricks' dbutils.
 
-    Args:
-        folder_path (str): Path to the folder containing CSV files.
-        recursive (bool): Whether to search recursively.
-        file_extension (str): File extension to filter by.
+    Parameters
+    ----------
+    folder_path : str
+        The full path to the directory in the data lake storage.
 
-    Returns:
-        List[str]: List of CSV file paths.
+    Returns
+    -------
+    list of str
+        A list of text file paths (files ending with .txt) in the specified directory. If there are no text files, returns an empty list.
 
-    Raises:
-        ValueError: If no matching files are found.
+    Raises
+    ------
+    ValueError
+        If the folder_path is empty or None.
+
+    Example
+    -------
+    >>> folder_path = "abfss://prod@eudldegikoproddl.dfs.core.windows.net/PROD/usecases/AnalyticsUW_UC1/Process_Mining/"
+    >>> text_files = list_text_files(folder_path)
+    >>> for file in text_files:
+    ...     print(file)
     """
+    if not folder_path:
+        raise ValueError("folder_path cannot be empty or None")
+
     try:
-        if recursive:
-            files = dbutils.fs.ls(folder_path)
-            csv_files = [f.path for f in files if f.path.endswith(f".{file_extension}")]
-        else:
-            files = dbutils.fs.ls(folder_path)
-            csv_files = [f.path for f in files if f.name.endswith(f".{file_extension}")]
+        # Use dbutils.fs.ls to list files and directories in the specified path
+        file_list = dbutils.fs.ls(folder_path)
 
-        if not csv_files:
-            raise ValueError(
-                f"No .{file_extension} files found in the specified folder: {folder_path}"
-            )
+        # Filter to only include text files (.txt) and exclude directories
+        text_files = [
+            file.path
+            for file in file_list
+            if file.path.endswith(".txt") and not file.isDir()
+        ]
 
-        return csv_files
+        # If no text files are found, optionally print a message and return an empty list
+        if not text_files:
+            print(f"No text files found in directory '{folder_path}'.")
+            return []
+
+        return text_files
     except Exception as e:
-        logging.error(f"Error listing CSV files: {str(e)}")
-        raise
+        print(f"An error occurred while listing text files: {str(e)}")
+        return []
 
 
+def list_non_empty_csv_files(folder_path: str) -> list[str]:
+    """
+    List all non-empty CSV files in a specified directory using Databricks' dbutils.
+
+    Parameters
+    ----------
+    folder_path : str
+        The full path to the directory in the data lake storage.
+
+    Returns
+    -------
+    list of str
+        A list of non-empty CSV file paths in the specified directory. If there are no non-empty CSV files, returns an empty list.
+
+    Raises
+    ------
+    ValueError
+        If the folder_path is empty or None.
+
+    Example
+    -------
+    >>> folder_path = "abfss://prod@eudldegikoproddl.dfs.core.windows.net/PROD/usecases/AnalyticsUW_UC1/Process_Mining/"
+    >>> csv_files = list_non_empty_csv_files(folder_path)
+    >>> for file in csv_files:
+    ...     print(file)
+    """
+    if not folder_path:
+        raise ValueError("folder_path cannot be empty or None")
+
+    try:
+        # Use dbutils.fs.ls to list files and directories in the specified path
+        file_list = dbutils.fs.ls(folder_path)
+
+        # Filter to only include non-empty CSV files and exclude directories
+        non_empty_csv_files = [
+            file.path
+            for file in file_list
+            if file.path.endswith(".csv") and not file.isDir() and file.size > 0
+        ]
+
+        # If no non-empty CSV files are found, optionally print a message and return an empty list
+        if not non_empty_csv_files:
+            print(f"No non-empty CSV files found in directory '{folder_path}'.")
+            return []
+
+        return non_empty_csv_files
+    except Exception as e:
+        print(f"An error occurred while listing non-empty CSV files: {str(e)}")
+        return []
 
 
 def _validate_input_get_delta_table(
@@ -613,5 +666,3 @@ def _save_dataframe(
     df.repartition(1).write.format("csv").mode(write_mode).save(
         file_path, header=header, sep=separator
     )
-
-
