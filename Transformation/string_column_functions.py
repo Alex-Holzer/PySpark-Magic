@@ -30,6 +30,7 @@ from pyspark.sql.functions import (
     length,
     lit,
     lower,
+    lpad,
     ltrim,
     regexp_replace,
     rpad,
@@ -893,12 +894,17 @@ def validate_equal_string_length(
 
 
 def enforce_string_length(
-    df: DataFrame, column_name: str, string_length: int = 20, padding_string: str = " "
+    df: DataFrame,
+    column_name: str,
+    string_length: int = 20,
+    padding_string: str = " ",
+    padding_side: str = "right",
 ) -> DataFrame:
     """
     Adjusts the string length of a specified column in the PySpark DataFrame to match the specified length.
 
-    If the original string is longer, it trims it. If it is shorter, it pads with the specified padding string.
+    If the original string is longer, it trims it. If it is shorter, it pads with the specified padding string
+    on the left or right, based on the padding_side parameter.
 
     Parameters
     ----------
@@ -910,17 +916,26 @@ def enforce_string_length(
         The length to which the strings should be adjusted (default is 20).
     padding_string : str, optional
         The string to use for padding if the original string is shorter (default is a space).
+    padding_side : str, optional
+        The side where padding should be applied: "left" or "right" (default is "right").
 
     Returns
     -------
     DataFrame
         A DataFrame with the specified column adjusted to the exact string length.
     """
+    if padding_side == "left":
+        pad_function = lpad
+    elif padding_side == "right":
+        pad_function = rpad
+    else:
+        raise ValueError("padding_side must be 'left' or 'right'")
+
     return df.withColumn(
         column_name,
         when(
             col(column_name).isNotNull(),
-            rpad(
+            pad_function(
                 col(column_name).substr(1, string_length), string_length, padding_string
             ),
         ).otherwise(col(column_name)),
