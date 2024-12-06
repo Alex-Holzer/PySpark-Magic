@@ -406,8 +406,6 @@ def parse_iso_timestamp(df, column_name, new_column_name):
         "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSXXX",
     ]
 
-    # Apply to_timestamp with each pattern and coalesce results
-    parsed_col = coalesce(*[to_timestamp(col(column_name), fmt) for fmt in patterns])
-
-    # Return DataFrame with the new parsed timestamp column
+    normalized_col = normalize_fractional_seconds(column_name)
+    parsed_col = coalesce(*[to_timestamp(col(normalized_col), fmt) for fmt in patterns])
     return df.withColumn(new_column_name, parsed_col)
