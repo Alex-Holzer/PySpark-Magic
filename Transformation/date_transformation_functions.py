@@ -18,6 +18,7 @@ from pyspark.sql.functions import (
     col,
     current_timestamp,
     expr,
+    regexp_replace,
     to_date,
     to_timestamp,
 )
@@ -357,6 +358,12 @@ def detect_timestamp_format(timestamp: str) -> Optional[str]:
         pass
 
     return None
+
+
+def normalize_fractional_seconds(col_name):
+    # This regex captures timestamps and normalizes the fractional part to at most 9 digits
+    # by truncating if it's longer.
+    return regexp_replace(col_name, r"(\.\d{9})\d+", r"\1")
 
 
 def parse_iso_timestamp(df, column_name, new_column_name):
