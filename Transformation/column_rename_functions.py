@@ -8,9 +8,6 @@ and validating column names in PySpark DataFrames. These functions are designed
 to be efficient, reusable, and compatible with large-scale data processing in
 Databricks environments.
 
-Author: Alex Holzer
-Date: 22.09.2024
-Version: 1.0
 """
 
 import re

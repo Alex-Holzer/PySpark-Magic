@@ -3,9 +3,9 @@ columns_remover_functions.py
 ===========================
 
 
-This module contains a set of utility functions for removing specific types of columns from a PySpark DataFrame.
-Each function is designed to handle a particular column type or content pattern, allowing for efficient data cleaning 
-and preprocessing in large datasets. 
+The module contains a set of utility functions for removing specific types 
+of columns from a PySpark DataFrame.
+
 """
 
 from typing import List
@@ -109,7 +109,7 @@ def remove_date_columns(df: DataFrame) -> DataFrame:
 
 def remove_numeric_columns(df: DataFrame) -> DataFrame:
     """
-    Removes all numeric columns (IntegerType, FloatType, DoubleType, etc.) from the given PySpark DataFrame.
+    Removes all numeric columns (IntegerType, FloatType, DoubleType, etc.) from the given DataFrame.
 
     Parameters
     ----------

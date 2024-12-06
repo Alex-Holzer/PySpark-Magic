@@ -1,3 +1,12 @@
+"""
+
+dataframe_combination_functions.py
+===========================
+
+The module provides a collection of dataframe combination functions.
+
+"""
+
 from typing import List, Union
 
 from pyspark.sql import DataFrame, SparkSession, broadcast

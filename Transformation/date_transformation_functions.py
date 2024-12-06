@@ -1,35 +1,29 @@
-from pyspark.sql import DataFrame, SparkSession
+"""
 
-# Initialize Spark session
-spark = SparkSession.builder.getOrCreate()
+date_transformation_functions.py
+===========================
+
+This module provides a collection of utility functions for transforming date columns
+
+
+
+"""
+
 from datetime import datetime
-from typing import List, Literal, Optional, Union
+from typing import List, Optional
 
-from pyspark.sql import DataFrame
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.functions import (
+    coalesce,
     col,
-    concat,
     current_timestamp,
-    date_format,
-    dayofmonth,
-    dayofweek,
-    dayofyear,
     expr,
-    from_unixtime,
-    hour,
-    last_day,
-    lit,
-    minute,
-    month,
-    quarter,
-    second,
     to_date,
     to_timestamp,
-    weekofyear,
-    when,
-    year,
 )
 from pyspark.sql.types import TimestampType
+
+spark: SparkSession = SparkSession.builder.getOrCreate()
 
 
 def cast_columns_to_date(
@@ -149,222 +143,6 @@ def add_current_timestamp_column(
         df = df.withColumn(column_name, current_timestamp())
 
     return df
-
-
-def format_date_column(
-    df: DataFrame, column: str, new_column_name: str, format: str = "MM.yyyy"
-) -> DataFrame:
-    """
-    Formats a date column to the specified format, defaulting to "MM.yyyy".
-
-    Parameters
-    ----------
-    df : DataFrame
-        The input DataFrame containing the date column.
-    column : str
-        The name of the date column to be formatted.
-    new_column_name : str
-        The name of the new column that will contain the formatted date.
-    format : str, optional
-        The desired date format. Defaults to "MM.yyyy".
-
-    Returns
-    -------
-    DataFrame
-        DataFrame with a new column containing the formatted date.
-
-    Examples
-    --------
-    >>> df = spark.createDataFrame([("2020-12-15",), ("2021-01-10",)], ["date_col"])
-    >>> df_formatted = format_date_column(df, "date_col", "formatted_date", "dd/MM/yyyy")
-    >>> df_formatted.show(truncate=False)
-    +----------+--------------+
-    |date_col  |formatted_date|
-    +----------+--------------+
-    |2020-12-15|15/12/2020    |
-    |2021-01-10|10/01/2021    |
-    +----------+--------------+
-    """
-    return df.withColumn(new_column_name, date_format(col(column), format))
-
-
-def add_day_of_week_column(
-    df: DataFrame, date_column: str, new_column_name: str = "day_of_week"
-) -> DataFrame:
-    """
-    Adds a new column to the DataFrame with the day of the week as long text (e.g., 'Monday')
-    derived from a date column.
-
-    Parameters
-    ----------
-    df : DataFrame
-        The input DataFrame containing the date column.
-    date_column : str
-        The name of the date column from which the day of the week is derived.
-    new_column_name : str, optional
-        The name of the new column containing the day of the week. Defaults to "day_of_week".
-
-    Returns
-    -------
-    DataFrame
-        DataFrame with a new column containing the day of the week as long text.
-
-    Examples
-    --------
-    >>> df = spark.createDataFrame([("2023-09-28",), ("2024-01-01",)], ["date_col"])
-    >>> df_with_day_of_week = add_day_of_week_column(df, "date_col")
-    >>> df_with_day_of_week.show(truncate=False)
-    +----------+------------+
-    |date_col  |day_of_week |
-    +----------+------------+
-    |2023-09-28|Thursday    |
-    |2024-01-01|Monday      |
-    +----------+------------+
-    """
-    return df.withColumn(new_column_name, date_format(col(date_column), "EEEE"))
-
-
-def add_month_column(
-    df: DataFrame, date_column: str, new_column_name: str = "month"
-) -> DataFrame:
-    """
-    Adds a new column to the DataFrame with the month extracted from a date column.
-
-    Parameters
-    ----------
-    df : DataFrame
-        The input DataFrame containing the date column.
-    date_column : str
-        The name of the date column from which the month is extracted.
-    new_column_name : str, optional
-        The name of the new column containing the month. Defaults to "month".
-
-    Returns
-    -------
-    DataFrame
-        DataFrame with a new column containing the extracted month.
-
-    Examples
-    --------
-    >>> df = spark.createDataFrame([("2023-09-28",), ("2024-01-01",)], ["date_col"])
-    >>> df_with_month = add_month_column(df, "date_col")
-    >>> df_with_month.show(truncate=False)
-    +----------+-----+
-    |date_col  |month|
-    +----------+-----+
-    |2023-09-28|9    |
-    |2024-01-01|1    |
-    +----------+-----+
-    """
-    return df.withColumn(new_column_name, month(col(date_column)))
-
-
-def add_year_column(
-    df: DataFrame, date_column: str, new_column_name: str = "year"
-) -> DataFrame:
-    """
-    Adds a new column to the DataFrame with the year extracted from a date column.
-
-    Parameters
-    ----------
-    df : DataFrame
-        The input DataFrame containing the date column.
-    date_column : str
-        The name of the date column from which the year is extracted.
-    new_column_name : str, optional
-        The name of the new column containing the year. Defaults to "year".
-
-    Returns
-    -------
-    DataFrame
-        DataFrame with a new column containing the extracted year.
-
-    Examples
-    --------
-    >>> df = spark.createDataFrame([("2023-09-28",), ("2024-01-01",)], ["date_col"])
-    >>> df_with_year = add_year_column(df, "date_col")
-    >>> df_with_year.show(truncate=False)
-    +----------+----+
-    |date_col  |year|
-    +----------+----+
-    |2023-09-28|2023|
-    |2024-01-01|2024|
-    +----------+----+
-    """
-    return df.withColumn(new_column_name, year(col(date_column)))
-
-
-def add_quarter_column(
-    df: DataFrame, date_column: str, new_column_name: str = "quarter"
-) -> DataFrame:
-    """
-    Adds a new column to the DataFrame with the quarter of the year extracted from a date column.
-
-    Parameters
-    ----------
-    df : DataFrame
-        The input DataFrame containing the date column.
-    date_column : str
-        The name of the date column from which the quarter is extracted.
-    new_column_name : str, optional
-        The name of the new column containing the quarter. Defaults to "quarter".
-
-    Returns
-    -------
-    DataFrame
-        DataFrame with a new column containing the extracted quarter.
-
-    Examples
-    --------
-    >>> df = spark.createDataFrame([("2023-09-28",), ("2024-01-01",)], ["date_col"])
-    >>> df_with_quarter = add_quarter_column(df, "date_col")
-    >>> df_with_quarter.show(truncate=False)
-    +----------+-------+
-    |date_col  |quarter|
-    +----------+-------+
-    |2023-09-28|3      |
-    |2024-01-01|1      |
-    +----------+-------+
-    """
-    return df.withColumn(new_column_name, quarter(col(date_column)))
-
-
-def add_quarter_year_column(
-    df: DataFrame, date_column: str, new_column_name: str = "quarter_year"
-) -> DataFrame:
-    """
-    Adds a new column to the DataFrame that combines the quarter and year extracted from a date column.
-
-    Parameters
-    ----------
-    df : DataFrame
-        The input DataFrame containing the date column.
-    date_column : str
-        The name of the date column from which the quarter and year are extracted.
-    new_column_name : str, optional
-        The name of the new column containing the combined quarter and year. Defaults to "quarter_year".
-
-    Returns
-    -------
-    DataFrame
-        DataFrame with a new column containing the combined quarter and year.
-
-    Examples
-    --------
-    >>> df = spark.createDataFrame([("2023-09-28",), ("2024-01-01",)], ["date_col"])
-    >>> df_with_quarter_year = add_quarter_year_column(df, "date_col")
-    >>> df_with_quarter_year.show(truncate=False)
-    +----------+------------+
-    |date_col  |quarter_year|
-    +----------+------------+
-    |2023-09-28|Q3 2023     |
-    |2024-01-01|Q1 2024     |
-    +----------+------------+
-    """
-    return df.withColumn(
-        new_column_name,
-        concat(lit("Q"), quarter(col(date_column)), lit(" "), year(col(date_column))),
-    )
 
 
 def detect_timestamp_format(timestamp: str) -> Optional[str]:
@@ -581,172 +359,48 @@ def detect_timestamp_format(timestamp: str) -> Optional[str]:
     return None
 
 
-DateFeature = Literal[
-    "year",
-    "month",
-    "day",
-    "dayofweek",
-    "dayofyear",
-    "weekofyear",
-    "quarter",
-    "is_weekend",
-    "is_month_start",
-    "is_month_end",
-    "is_year_start",
-    "is_year_end",
-]
-
-TimeFeature = Literal[
-    "hour",
-    "minute",
-    "second",
-    "am_pm",
-    "is_morning",
-    "is_afternoon",
-    "is_evening",
-    "is_night",
-    "day_period",
-]
-
-
-def add_date_feature(
-    df: DataFrame,
-    date_col: str,
-    date_feature: DateFeature,
-    output_col_name: Optional[str] = None,
-) -> DataFrame:
+def parse_iso_timestamp(df, column_name, new_column_name):
     """
-    Extract a specific date feature from a date column and add it as a new column.
+    Converts a column containing ISO 8601-like string timestamps with varying fractional second precision
+    and time zone offsets into a Spark TimestampType column. Returns a DataFrame with an added or replaced
+    column containing the converted timestamps.
 
-    This function adds a new column to the DataFrame, representing a specific
-    feature extracted from the specified date column.
+    This function tries multiple timestamp formats to accommodate different lengths of fractional seconds.
+    It uses `coalesce` to return the first successfully parsed result.
 
-    Args:
-        df (DataFrame): Input DataFrame.
-        date_col (str): Name of the column containing the date.
-        date_feature (DateFeature): Feature to extract. Available features are:
-            'year', 'month', 'day', 'dayofweek', 'dayofyear', 'weekofyear',
-            'quarter', 'is_weekend', 'is_month_start', 'is_month_end',
-            'is_year_start', 'is_year_end'
-        output_col_name (Optional[str]): Name of the new column for the extracted feature.
-            If None, defaults to the name of the date_feature.
+    Parameters
+    ----------
+    df : pyspark.sql.dataframe.DataFrame
+        Input DataFrame
+    column_name : str
+        Name of the column containing the string timestamps
+    new_column_name : str
+        Name of the new column to store the parsed timestamps
 
-    Returns:
-        DataFrame: DataFrame with an additional column for the extracted date feature.
-
-    Raises:
-        ValueError: If the specified date_col is not present in the DataFrame.
-
-    Example:
-        >>> df = spark.createDataFrame([
-        ...     ('2023-01-01',),
-        ...     ('2023-06-15',),
-        ...     ('2023-12-31',)
-        ... ], ['date'])
-        >>> result = add_date_feature(df, 'date', 'is_weekend', 'is_weekend_flag')
-        >>> result.show()
-        +----------+---------------+
-        |      date|is_weekend_flag|
-        +----------+---------------+
-        |2023-01-01|           true|
-        |2023-06-15|          false|
-        |2023-12-31|           true|
-        +----------+---------------+
+    Returns
+    -------
+    pyspark.sql.dataframe.DataFrame
+        A DataFrame with an additional column containing parsed timestamps.
     """
-    if date_col not in df.columns:
-        raise ValueError(f"Column '{date_col}' not found in the DataFrame.")
 
-    if output_col_name is None:
-        output_col_name = date_feature
+    # Define multiple formats to handle variable fractions of a second
+    # and different lengths of timestamp strings.
+    # The patterns assume ISO 8601 structure like:
+    # yyyy-MM-dd'T'HH:mm:ss[.fractional_seconds]+HH:MM
+    # We start from no fractional second up to a high count of fractional digits.
+    patterns = [
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSXXX",
+    ]
 
-    date_features = {
-        "year": year(col(date_col)),
-        "month": month(col(date_col)),
-        "day": dayofmonth(col(date_col)),
-        "dayofweek": dayofweek(col(date_col)),
-        "dayofyear": dayofyear(col(date_col)),
-        "weekofyear": weekofyear(col(date_col)),
-        "quarter": quarter(col(date_col)),
-        "is_weekend": (dayofweek(col(date_col)).isin([1, 7])).cast("boolean"),
-        "is_month_start": (dayofmonth(col(date_col)) == lit(1)).cast("boolean"),
-        "is_month_end": (last_day(col(date_col)) == col(date_col)).cast("boolean"),
-        "is_year_start": (
-            (month(col(date_col)) == lit(1)) & (dayofmonth(col(date_col)) == lit(1))
-        ).cast("boolean"),
-        "is_year_end": (
-            (month(col(date_col)) == lit(12)) & (dayofmonth(col(date_col)) == lit(31))
-        ).cast("boolean"),
-    }
+    # Apply to_timestamp with each pattern and coalesce results
+    parsed_col = coalesce(*[to_timestamp(col(column_name), fmt) for fmt in patterns])
 
-    return df.withColumn(output_col_name, date_features[date_feature])
-
-
-def add_time_feature(
-    df: DataFrame,
-    timestamp_col: str,
-    time_feature: TimeFeature,
-    output_col_name: Optional[str] = None,
-) -> DataFrame:
-    """
-    Extract a specific time feature from a timestamp column and add it as a new column.
-
-    This function adds a new column to the DataFrame, representing a specific
-    time feature extracted from the specified timestamp column.
-
-    Args:
-        df (DataFrame): Input DataFrame.
-        timestamp_col (str): Name of the column containing the timestamp.
-        time_feature (TimeFeature): Feature to extract. Available features are:
-            'hour', 'minute', 'second', 'am_pm', 'is_morning', 'is_afternoon',
-            'is_evening', 'is_night', 'day_period'
-        output_col_name (Optional[str]): Name of the new column for the extracted feature.
-            If None, defaults to the name of the time_feature.
-
-    Returns:
-        DataFrame: DataFrame with an additional column for the extracted time feature.
-
-    Raises:
-        ValueError: If the specified timestamp_col is not present in the DataFrame.
-
-    Example:
-        >>> df = spark.createDataFrame([
-        ...     ('2023-01-01 09:30:00',),
-        ...     ('2023-06-15 14:45:30',),
-        ...     ('2023-12-31 23:59:59',)
-        ... ], ['timestamp'])
-        >>> result = add_time_feature(df, 'timestamp', 'am_pm', 'period')
-        >>> result.show()
-        +-------------------+------+
-        |          timestamp|period|
-        +-------------------+------+
-        |2023-01-01 09:30:00|    AM|
-        |2023-06-15 14:45:30|    PM|
-        |2023-12-31 23:59:59|    PM|
-        +-------------------+------+
-    """
-    if timestamp_col not in df.columns:
-        raise ValueError(f"Column '{timestamp_col}' not found in the DataFrame.")
-
-    if output_col_name is None:
-        output_col_name = time_feature
-
-    time_features = {
-        "hour": hour(col(timestamp_col)),
-        "minute": minute(col(timestamp_col)),
-        "second": second(col(timestamp_col)),
-        "am_pm": date_format(col(timestamp_col), "a"),
-        "is_morning": (hour(col(timestamp_col)).between(6, 11)).cast("boolean"),
-        "is_afternoon": (hour(col(timestamp_col)).between(12, 17)).cast("boolean"),
-        "is_evening": (hour(col(timestamp_col)).between(18, 23)).cast("boolean"),
-        "is_night": (
-            (hour(col(timestamp_col)) >= 0) & (hour(col(timestamp_col)) < 6)
-        ).cast("boolean"),
-        "day_period": (
-            when(hour(col(timestamp_col)).between(6, 11), "Morning")
-            .when(hour(col(timestamp_col)).between(12, 17), "Afternoon")
-            .when(hour(col(timestamp_col)).between(18, 23), "Evening")
-            .otherwise("Night")
-        ),
-    }
-
-    return df.withColumn(output_col_name, time_features[time_feature])
+    # Return DataFrame with the new parsed timestamp column
+    return df.withColumn(new_column_name, parsed_col)
